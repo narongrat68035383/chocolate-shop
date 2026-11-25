@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ช็อกโกแลตแท่ง | Bar & Co.</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700&family=Mitr:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--cocoa:#3b1f14;--milk:#f3e6d8;--gold:#c8923a;--ink:#2a1710;--card:#fffaf4}
+*{box-sizing:border-box}
+body{margin:0;font-family:Prompt,sans-serif;background:var(--milk);color:var(--ink)}
+header{background:var(--cocoa);color:var(--milk);padding:56px 20px 48px;text-align:center}
+header h1{font-family:Mitr,sans-serif;font-weight:500;font-size:clamp(2.2rem,8vw,4rem);margin:0 0 12px;letter-spacing:.5px}
+header p{margin:0 auto 24px;max-width:34ch;opacity:.85}
+.btn{display:inline-block;background:var(--gold);color:var(--cocoa);border:0;border-radius:999px;padding:12px 28px;font:600 1rem Prompt,sans-serif;text-decoration:none;cursor:pointer}
+main{max-width:960px;margin:0 auto;padding:32px 16px 80px}
+h2{font-family:Mitr,sans-serif;font-weight:500}
+#grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.item{background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 2px 0 rgba(59,31,20,.12)}
+.item img{width:100%;aspect-ratio:4/3;object-fit:cover;background:#d9c3ad;display:block}
+.body{padding:16px}
+.body h3{margin:0 0 4px}
+.sku{font-size:.8rem;opacity:.6}
+.price{font-weight:700;color:var(--gold);font-size:1.3rem;margin:8px 0}
+.qty{display:flex;align-items:center;gap:12px;margin-top:12px}
+.qty button{width:36px;height:36px;border-radius:50%;border:2px solid var(--cocoa);background:none;font-size:1.2rem;cursor:pointer}
+#order{margin-top:36px;background:var(--card);border-radius:14px;padding:20px}
+#order input{width:100%;padding:12px;margin:6px 0;border:1px solid #cdb79f;border-radius:8px;font:inherit}
+#sum{white-space:pre-line;margin:12px 0}
+#msg{color:#2e7d32;font-weight:600}
+footer{text-align:center;padding:24px;opacity:.6;font-size:.85rem}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Bar &amp; Co.</h1>
+  <p>ช็อกโกแลตแท่งเข้มข้น ทำสดใหม่ ส่งถึงบ้านคุณ</p>
+  <a class="btn" href="#shop">เลือกซื้อสินค้า</a>
+</header>
+<main id="shop">
+  <h2>สินค้าของเรา</h2>
+  <div id="grid"><p>กำลังโหลดสินค้า...</p></div>
+  <section id="order">
+    <h2>สั่งซื้อ</h2>
+    <div id="sum">ยังไม่ได้เลือกสินค้า</div>
+    <input id="name" placeholder="ชื่อผู้รับ">
+    <input id="addr" placeholder="ที่อยู่จัดส่ง">
+    <button class="btn" id="send">ยืนยันคำสั่งซื้อ</button>
+    <p id="msg"></p>
+  </section>
+</main>
+<footer>© Bar &amp; Co. — ข้อมูลสินค้าจาก Google Sheet</footer>
+
+<script>
+// ===== ตั้งค่า: ใส่ ID ของ Google Sheet (ส่วนระหว่าง /d/ และ /edit ในลิงก์) =====
+const SHEET_ID = "1Ov7iMjiZUqI7BuYnVZIDUsIKZ0boXvO9rXab88H3TqM";
+// คอลัมน์ในชีต (แถวแรก): sku, name, price, desc, image
+// image = ชื่อไฟล์ในโฟลเดอร์ images/ เช่น dark70.svg
+const FALLBACK = [
+  {sku:"CHO-001",name:"ดาร์กช็อกโกแลต 70%",price:"89",desc:"เข้มข้น หวานน้อย 50 กรัม",image:"dark70.svg"},
+  {sku:"CHO-002",name:"มิลค์ช็อกโกแลต",price:"79",desc:"นุ่มละมุน หวานกลมกล่อม 50 กรัม",image:"milk.svg"}
+];
+const cart = {}; let products = [];
+
+function parseCSV(t){
+  const rows=[];let r=[],c="",q=false;
+  for(let i=0;i<t.length;i++){const ch=t[i];
+    if(q){ if(ch=='"'&&t[i+1]=='"'){c+='"';i++} else if(ch=='"')q=false; else c+=ch }
+    else if(ch=='"')q=true; else if(ch==','){r.push(c);c=""}
+    else if(ch=='\n'){r.push(c);rows.push(r);r=[];c=""} else if(ch!='\r')c+=ch }
+  if(c||r.length){r.push(c);rows.push(r)}
+  const h=rows.shift().map(x=>x.trim().toLowerCase());
+  return rows.filter(x=>x.length>1).map(x=>Object.fromEntries(h.map((k,i)=>[k,(x[i]||"").trim()])));
+}
+async function load(){
+  try{
+    const res=await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`);
+    if(!res.ok) throw 0;
+    products=parseCSV(await res.text());
+    if(!products.length) throw 0;
+  }catch(e){ products=FALLBACK }
+  render();
+}
+function render(){
+  document.getElementById("grid").innerHTML=products.map((p,i)=>`
+   <article class="item">
+     <img src="images/${p.image}" alt="${p.name}" onerror="this.removeAttribute('src')">
+     <div class="body">
+       <div class="sku">${p.sku}</div><h3>${p.name}</h3><div>${p.desc||""}</div>
+       <div class="price">฿${p.price}</div>
+       <div class="qty"><button onclick="chg(${i},-1)" aria-label="ลด">−</button>
+       <span id="q${i}">0</span><button onclick="chg(${i},1)" aria-label="เพิ่ม">+</button></div>
+     </div></article>`).join("");
+}
+function chg(i,d){
+  cart[i]=Math.max(0,(cart[i]||0)+d);
+  document.getElementById("q"+i).textContent=cart[i];
+  let total=0,lines=[];
+  products.forEach((p,k)=>{const n=cart[k]||0;if(n){total+=n*Number(p.price);lines.push(`${p.name} × ${n} = ฿${n*Number(p.price)}`)}});
+  document.getElementById("sum").textContent=lines.length?lines.join("\n")+`\nรวม ฿${total}`:"ยังไม่ได้เลือกสินค้า";
+}
+document.getElementById("send").onclick=()=>{
+  const m=document.getElementById("msg");
+  if(!Object.values(cart).some(n=>n>0)) return m.textContent="กรุณาเลือกสินค้าอย่างน้อย 1 ชิ้น";
+  if(!name.value||!addr.value) return m.textContent="กรุณากรอกชื่อและที่อยู่";
+  m.textContent="รับคำสั่งซื้อแล้ว ขอบคุณที่สั่งซื้อ";
+};
+load();
+</script>
+</body>
+</html>
